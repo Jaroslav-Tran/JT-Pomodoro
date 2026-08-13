@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pomodo — Focus Timer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true">
+      <div class="orb orb-a"></div>
+      <div class="orb orb-b"></div>
+      <div class="grain"></div>
+    </div>
+
+    <main class="app">
+      <header class="brand">
+        <p class="brand-mark">Pomodo</p>
+        <p class="brand-tag" id="status-copy">Twenty-five minutes of deep focus.</p>
+      </header>
+
+      <section class="timer" aria-labelledby="mode-label">
+        <p class="mode" id="mode-label">Focus</p>
+
+        <div class="ring-wrap">
+          <svg class="ring" viewBox="0 0 280 280" aria-hidden="true">
+            <circle class="ring-track" cx="140" cy="140" r="120" />
+            <circle class="ring-progress" cx="140" cy="140" r="120" />
+          </svg>
+          <div class="time-block">
+            <p class="time" id="time" aria-live="polite">25:00</p>
+            <p class="session" id="session">Session 1</p>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button type="button" class="btn btn-primary" id="toggle" aria-pressed="false">
+            Start
+          </button>
+          <button type="button" class="btn btn-ghost" id="reset">Reset</button>
+        </div>
+
+        <div class="modes" role="tablist" aria-label="Timer mode">
+          <button type="button" class="mode-btn is-active" data-mode="focus" role="tab" aria-selected="true">
+            Focus
+          </button>
+          <button type="button" class="mode-btn" data-mode="short" role="tab" aria-selected="false">
+            Short break
+          </button>
+          <button type="button" class="mode-btn" data-mode="long" role="tab" aria-selected="false">
+            Long break
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
