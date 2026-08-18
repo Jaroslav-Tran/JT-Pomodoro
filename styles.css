@@ -246,6 +246,7 @@ body {
   appearance: none;
   border: 0;
   cursor: pointer;
+  touch-action: manipulation;
   font-family: inherit;
   font-size: 1rem;
   font-weight: 700;
@@ -327,11 +328,16 @@ body.is-break {
   position: fixed;
   inset: 0;
   z-index: 10;
-  display: grid;
+  display: none;
   place-items: center;
   padding: 1.25rem;
   background: rgba(28, 36, 28, 0.46);
   backdrop-filter: blur(10px);
+}
+
+.reward.is-open,
+.reward:not([hidden]) {
+  display: grid;
 }
 
 .reward[hidden] {

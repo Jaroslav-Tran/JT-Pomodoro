@@ -83,6 +83,7 @@ let endsAt = null;
 let currentBlock = { categories: [], focus: "" };
 let logRange = "daily";
 let intentSelected = new Set();
+let intentReady = false;
 
 ringProgress.style.strokeDasharray = String(CIRCUMFERENCE);
 
@@ -496,12 +497,25 @@ function openIntent() {
   intentNewCategory.value = "";
   intentCategoryError.hidden = true;
   renderChips();
+  intentReady = false;
   intentEl.hidden = false;
-  intentFocus.focus();
+  intentEl.classList.add("is-open");
+  intentEl.setAttribute("aria-hidden", "false");
+  // Ignore the same tap that opened the sheet so it cannot hit Cancel / backdrop.
+  window.setTimeout(() => {
+    if (intentEl.hidden) return;
+    intentReady = true;
+    if (!window.matchMedia("(pointer: coarse)").matches) {
+      intentFocus.focus();
+    }
+  }, 400);
 }
 
 function closeIntent() {
+  intentReady = false;
+  intentEl.classList.remove("is-open");
   intentEl.hidden = true;
+  intentEl.setAttribute("aria-hidden", "true");
 }
 
 function addCustomCategory() {
@@ -539,9 +553,13 @@ function submitIntent(event) {
   start();
 }
 
+function needsFocusIntent() {
+  return mode === "focus" && !currentBlock.focus;
+}
+
 function requestStart() {
   if (running) return;
-  if (mode === "focus" && remaining === total) {
+  if (needsFocusIntent()) {
     openIntent();
     return;
   }
@@ -622,11 +640,21 @@ rewardCloseBtn.addEventListener("click", closeReward);
 rewardEl.addEventListener("click", (event) => {
   if (event.target === rewardEl) closeReward();
 });
-intentCancel.addEventListener("click", closeIntent);
+intentCancel.addEventListener("click", () => {
+  if (!intentReady) return;
+  closeIntent();
+});
 intentEl.addEventListener("click", (event) => {
+  if (!intentReady) return;
   if (event.target === intentEl) closeIntent();
 });
-intentForm.addEventListener("submit", submitIntent);
+intentForm.addEventListener("submit", (event) => {
+  if (!intentReady) {
+    event.preventDefault();
+    return;
+  }
+  submitIntent(event);
+});
 intentAddCategory.addEventListener("click", addCustomCategory);
 intentNewCategory.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
