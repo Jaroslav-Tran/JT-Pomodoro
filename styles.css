@@ -406,6 +406,12 @@ body.is-break {
   line-height: 1.2;
 }
 
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
 .field {
   display: grid;
   gap: 0.35rem;
@@ -593,11 +599,19 @@ body.is-break {
 
 .log-session {
   display: grid;
-  gap: 0.1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
   padding: 0.7rem 0.8rem;
   border-radius: 0.9rem;
   background: var(--surface);
   border: 1px solid var(--line);
+}
+
+.log-session-copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
 .log-session strong {
@@ -607,6 +621,19 @@ body.is-break {
 .log-session span {
   color: var(--ink-soft);
   font-size: 0.82rem;
+}
+
+.log-edit {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent-deep);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.45rem 0.15rem;
 }
 
 .log-empty {
@@ -701,4 +728,106 @@ body.is-break {
     animation: none !important;
     transition: none !important;
   }
+}
+
+.field-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.field-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--accent-deep);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.3rem 0.1rem;
+}
+
+.chips.is-managing {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.cat-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.field .cat-edit input {
+  flex: 1;
+  padding: 0.55rem 0.8rem;
+}
+
+.cat-save,
+.cat-delete {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent-deep);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.cat-save {
+  font-weight: 700;
+  color: #2f7a4c;
+  border-color: rgba(63, 155, 99, 0.45);
+}
+
+.cat-save:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.cat-edit.is-dirty .cat-save {
+  background: #3f9b63;
+  border-color: transparent;
+  color: #fffaf7;
+}
+
+.cat-edit.is-dirty input {
+  border-color: var(--accent);
+}
+
+.cat-edit.is-saved input {
+  animation: cat-saved 1.6s ease-out;
+}
+
+@keyframes cat-saved {
+  0%,
+  40% {
+    border-color: #3f9b63;
+    box-shadow: 0 0 0 3px rgba(63, 155, 99, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 0 3px rgba(63, 155, 99, 0);
+  }
+}
+
+.cat-status {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.cat-status.is-success {
+  color: #2f7a4c;
+  font-weight: 600;
+}
+
+.field-link[aria-pressed="true"] {
+  color: var(--ink);
 }

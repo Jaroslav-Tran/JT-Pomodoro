@@ -24,6 +24,7 @@ const MAX_DURATION = 90 * 60;
 const LOG_KEY = "pomodo-log";
 const CATEGORIES_KEY = "pomodo-categories";
 const LAST_CATEGORIES_KEY = "pomodo-last-categories";
+const CATEGORY_LIST_KEY = "pomodo-category-list";
 const DEFAULT_CATEGORIES = [
   "Youtube Automation",
   "Youtube Education",
@@ -56,10 +57,23 @@ const intentNewCategory = document.getElementById("intent-new-category");
 const intentAddCategory = document.getElementById("intent-add-category");
 const intentCategoryError = document.getElementById("intent-category-error");
 const intentCancel = document.getElementById("intent-cancel");
+const intentManage = document.getElementById("intent-manage");
 const logSummaryEl = document.getElementById("log-summary");
 const logCategoriesEl = document.getElementById("log-categories");
 const logSessionsEl = document.getElementById("log-sessions");
 const logRangeButtons = document.querySelectorAll(".log-range-btn");
+const editEl = document.getElementById("edit");
+const editForm = document.getElementById("edit-form");
+const editFocus = document.getElementById("edit-focus");
+const editMinutes = document.getElementById("edit-minutes");
+const editDay = document.getElementById("edit-day");
+const editTime = document.getElementById("edit-time");
+const editChips = document.getElementById("edit-chips");
+const editNewCategory = document.getElementById("edit-new-category");
+const editAddCategory = document.getElementById("edit-add-category");
+const editError = document.getElementById("edit-error");
+const editCancel = document.getElementById("edit-cancel");
+const editManage = document.getElementById("edit-manage");
 
 const FALLBACK_QUOTES = [
   { quote: "The secret of getting ahead is getting started.", author: "Mark Twain" },
@@ -84,6 +98,11 @@ let currentBlock = { categories: [], focus: "" };
 let logRange = "daily";
 let intentSelected = new Set();
 let intentReady = false;
+let editingId = null;
+let editSelected = new Set();
+let editReady = false;
+let intentManaging = false;
+let editManaging = false;
 
 ringProgress.style.strokeDasharray = String(CIRCUMFERENCE);
 
@@ -345,14 +364,71 @@ function loadCustomCategories() {
   return Array.isArray(data) ? data.filter((item) => typeof item === "string") : [];
 }
 
-function saveCustomCategories(categories) {
-  localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
+function saveCategoryList(categories) {
+  localStorage.setItem(CATEGORY_LIST_KEY, JSON.stringify([...new Set(categories)]));
 }
 
+// The full, user-editable list. Seeded once from defaults, older custom
+// categories, and anything already used in the log.
 function allCategories() {
+  const stored = readJson(CATEGORY_LIST_KEY, null);
+  if (Array.isArray(stored)) return stored.filter((item) => typeof item === "string");
   const extras = loadCustomCategories();
-  const fromLog = loadLog().flatMap((entry) => entry.categories || []);
-  return [...new Set([...DEFAULT_CATEGORIES, ...extras, ...fromLog])];
+  const fromLog = loadLog()
+    .flatMap((entry) => entry.categories || [])
+    .filter((item) => item !== "Uncategorized");
+  const seeded = [...new Set([...DEFAULT_CATEGORIES, ...extras, ...fromLog])];
+  saveCategoryList(seeded);
+  return seeded;
+}
+
+function replaceInSet(set, from, to) {
+  if (!set.has(from)) return;
+  set.delete(from);
+  if (to) set.add(to);
+}
+
+function renameCategory(from, rawTo) {
+  const to = rawTo.trim();
+  if (!to || to === from) return null;
+  const list = allCategories();
+  const clash = list.find((item) => item !== from && item.toLowerCase() === to.toLowerCase());
+  const target = clash || to;
+
+  saveCategoryList(list.map((item) => (item === from ? target : item)));
+
+  const entries = loadLog();
+  entries.forEach((entry) => {
+    if (!entry.categories?.includes(from)) return;
+    entry.categories = [...new Set(entry.categories.map((item) => (item === from ? target : item)))];
+  });
+  saveLog(entries);
+
+  const last = readJson(LAST_CATEGORIES_KEY, []);
+  if (Array.isArray(last)) {
+    localStorage.setItem(
+      LAST_CATEGORIES_KEY,
+      JSON.stringify([...new Set(last.map((item) => (item === from ? target : item)))]),
+    );
+  }
+
+  currentBlock.categories = [...new Set(currentBlock.categories.map((item) => (item === from ? target : item)))];
+  replaceInSet(intentSelected, from, target);
+  replaceInSet(editSelected, from, target);
+  return target;
+}
+
+// Removes a category from the picker. Past log entries keep their tag.
+function deleteCategory(name) {
+  if (!window.confirm(`Delete the category "${name}"? Past sessions keep their tag.`)) return false;
+  saveCategoryList(allCategories().filter((item) => item !== name));
+  const last = readJson(LAST_CATEGORIES_KEY, []);
+  if (Array.isArray(last)) {
+    localStorage.setItem(LAST_CATEGORIES_KEY, JSON.stringify(last.filter((item) => item !== name)));
+  }
+  replaceInSet(intentSelected, name);
+  replaceInSet(editSelected, name);
+  return true;
 }
 
 function localDay(date = new Date()) {
@@ -388,6 +464,18 @@ function entriesInRange(entries, range) {
 function formatMinutes(seconds) {
   const minutes = Math.round(seconds / 60);
   return `${minutes} min`;
+}
+
+function timeValueFromIso(iso) {
+  const date = iso ? new Date(iso) : new Date();
+  if (Number.isNaN(date.getTime())) return "12:00";
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function combineDayAndTime(day, time) {
+  const [year, month, date] = day.split("-").map(Number);
+  const [hours, minutes] = time.split(":").map(Number);
+  return new Date(year, month - 1, date, hours || 0, minutes || 0, 0, 0).toISOString();
 }
 
 function saveCompletedFocus(seconds, block) {
@@ -460,11 +548,23 @@ function renderLog() {
     const cats = entry.categories || [];
     const item = document.createElement("li");
     item.className = "log-session";
+
+    const copy = document.createElement("div");
+    copy.className = "log-session-copy";
     const title = document.createElement("strong");
     title.textContent = entry.focus || cats.join(", ") || "Focus block";
     const meta = document.createElement("span");
     meta.textContent = `${cats.join(" · ")} · ${formatMinutes(entry.seconds)} · ${entry.day}`;
-    item.append(title, meta);
+    copy.append(title, meta);
+
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "log-edit";
+    editBtn.textContent = "Edit";
+    editBtn.setAttribute("aria-label", `Edit ${title.textContent}`);
+    editBtn.addEventListener("click", () => openEdit(entry));
+
+    item.append(copy, editBtn);
     logSessionsEl.append(item);
   });
 }
@@ -473,21 +573,140 @@ function isIntentOpen() {
   return !intentEl.hidden;
 }
 
-function renderChips() {
-  intentChips.replaceChildren();
+function renderCategoryEditor(container, rerender, status) {
   allCategories().forEach((category) => {
+    const row = document.createElement("div");
+    row.className = `cat-edit${status?.name === category ? " is-saved" : ""}`;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.maxLength = 40;
+    input.value = category;
+    input.setAttribute("aria-label", `Rename ${category}`);
+
+    const save = document.createElement("button");
+    save.type = "button";
+    save.className = "cat-save";
+    save.textContent = "✓";
+    save.disabled = true;
+    save.setAttribute("aria-label", `Save new name for ${category}`);
+
+    const syncDirty = () => {
+      const dirty = input.value.trim() !== "" && input.value.trim() !== category;
+      save.disabled = !dirty;
+      row.classList.toggle("is-dirty", dirty);
+    };
+
+    const commit = () => {
+      if (save.disabled) return;
+      const typed = input.value.trim().toLowerCase();
+      const merging = allCategories().some((item) => item !== category && item.toLowerCase() === typed);
+      const target = renameCategory(category, input.value);
+      if (!target) return;
+      renderLog();
+      rerender({
+        name: target,
+        message: merging ? `Merged “${category}” into “${target}”.` : `Renamed “${category}” to “${target}”.`,
+      });
+    };
+
+    input.addEventListener("input", syncDirty);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        commit();
+      }
+      if (event.key === "Escape" && !save.disabled) {
+        event.preventDefault();
+        event.stopPropagation();
+        input.value = category;
+        syncDirty();
+      }
+    });
+    save.addEventListener("click", commit);
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "cat-delete";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Delete ${category}`);
+    remove.addEventListener("click", () => {
+      if (deleteCategory(category)) rerender({ message: `Deleted “${category}”.` });
+    });
+
+    row.append(input, save, remove);
+    container.append(row);
+  });
+
+  const statusEl = document.createElement("p");
+  statusEl.className = "cat-status";
+  statusEl.setAttribute("role", "status");
+  statusEl.textContent = status?.message || "Change a name, then tap ✓ to save it.";
+  statusEl.classList.toggle("is-success", Boolean(status?.message));
+  container.append(statusEl);
+}
+
+function renderCategoryChips(container, selected, onChange, managing = false, status = null) {
+  container.replaceChildren();
+  container.classList.toggle("is-managing", managing);
+  if (managing) {
+    renderCategoryEditor(
+      container,
+      (next) => renderCategoryChips(container, selected, onChange, true, next),
+      status,
+    );
+    return;
+  }
+  // Keep tags that were deleted from the list visible on entries that still use them.
+  [...new Set([...allCategories(), ...selected])].forEach((category) => {
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.className = `chip${intentSelected.has(category) ? " is-on" : ""}`;
+    chip.className = `chip${selected.has(category) ? " is-on" : ""}`;
     chip.textContent = category;
     chip.addEventListener("click", () => {
-      if (intentSelected.has(category)) intentSelected.delete(category);
-      else intentSelected.add(category);
-      intentCategoryError.hidden = true;
-      renderChips();
+      if (selected.has(category)) selected.delete(category);
+      else selected.add(category);
+      onChange();
+      renderCategoryChips(container, selected, onChange);
     });
-    intentChips.append(chip);
+    container.append(chip);
   });
+}
+
+function renderChips() {
+  renderCategoryChips(
+    intentChips,
+    intentSelected,
+    () => {
+      intentCategoryError.hidden = true;
+    },
+    intentManaging,
+  );
+  intentManage.textContent = intentManaging ? "Return" : "Edit";
+  intentManage.setAttribute("aria-pressed", String(intentManaging));
+}
+
+function renderEditChips() {
+  renderCategoryChips(
+    editChips,
+    editSelected,
+    () => {
+      editError.hidden = true;
+    },
+    editManaging,
+  );
+  editManage.textContent = editManaging ? "Return" : "Edit";
+  editManage.setAttribute("aria-pressed", String(editManaging));
+}
+
+function rememberCategory(name, selected) {
+  const trimmed = name.trim();
+  if (!trimmed) return false;
+  const exists = allCategories().find((item) => item.toLowerCase() === trimmed.toLowerCase());
+  const finalName = exists || trimmed;
+  if (!exists) saveCategoryList([...allCategories(), trimmed]);
+  selected.add(finalName);
+  return true;
 }
 
 function openIntent() {
@@ -496,11 +715,10 @@ function openIntent() {
   intentFocus.value = "";
   intentNewCategory.value = "";
   intentCategoryError.hidden = true;
+  intentManaging = false;
   renderChips();
   intentReady = false;
-  intentEl.hidden = false;
-  intentEl.classList.add("is-open");
-  intentEl.setAttribute("aria-hidden", "false");
+  openSheet(intentEl);
   // Ignore the same tap that opened the sheet so it cannot hit Cancel / backdrop.
   window.setTimeout(() => {
     if (intentEl.hidden) return;
@@ -513,24 +731,106 @@ function openIntent() {
 
 function closeIntent() {
   intentReady = false;
-  intentEl.classList.remove("is-open");
-  intentEl.hidden = true;
-  intentEl.setAttribute("aria-hidden", "true");
+  closeSheet(intentEl);
 }
 
 function addCustomCategory() {
-  const name = intentNewCategory.value.trim();
-  if (!name) return;
-  const categories = allCategories();
-  const exists = categories.find((item) => item.toLowerCase() === name.toLowerCase());
-  const finalName = exists || name;
-  if (!exists) {
-    saveCustomCategories([...loadCustomCategories(), name]);
-  }
-  intentSelected.add(finalName);
+  if (!rememberCategory(intentNewCategory.value, intentSelected)) return;
   intentNewCategory.value = "";
   intentCategoryError.hidden = true;
   renderChips();
+}
+
+function isEditOpen() {
+  return !editEl.hidden;
+}
+
+function openSheet(sheet) {
+  sheet.hidden = false;
+  sheet.classList.add("is-open");
+  sheet.setAttribute("aria-hidden", "false");
+}
+
+function closeSheet(sheet) {
+  sheet.classList.remove("is-open");
+  sheet.hidden = true;
+  sheet.setAttribute("aria-hidden", "true");
+}
+
+function openEdit(entry) {
+  editingId = entry.id;
+  editFocus.value = entry.focus || "";
+  editMinutes.value = String(Math.max(1, Math.round((entry.seconds || 0) / 60)));
+  editDay.value = entry.day || localDay(entry.endedAt ? new Date(entry.endedAt) : new Date());
+  editTime.value = timeValueFromIso(entry.endedAt);
+  editSelected = new Set((entry.categories || []).filter((item) => item && item !== "Uncategorized"));
+  editNewCategory.value = "";
+  editError.hidden = true;
+  editManaging = false;
+  renderEditChips();
+  editReady = false;
+  openSheet(editEl);
+  window.setTimeout(() => {
+    if (editEl.hidden) return;
+    editReady = true;
+    if (!window.matchMedia("(pointer: coarse)").matches) editFocus.focus();
+  }, 400);
+}
+
+function closeEdit() {
+  editReady = false;
+  editingId = null;
+  closeSheet(editEl);
+}
+
+function addEditCategory() {
+  if (!rememberCategory(editNewCategory.value, editSelected)) return;
+  editNewCategory.value = "";
+  editError.hidden = true;
+  renderEditChips();
+}
+
+function submitEdit(event) {
+  event.preventDefault();
+  const focus = editFocus.value.trim();
+  const minutes = Number(editMinutes.value);
+  const day = editDay.value;
+  const time = editTime.value;
+  if (!focus) {
+    editFocus.reportValidity();
+    return;
+  }
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 180) {
+    editMinutes.setCustomValidity("Use 1 to 180 minutes.");
+    editMinutes.reportValidity();
+    editMinutes.setCustomValidity("");
+    return;
+  }
+  if (!day || !time) {
+    (day ? editTime : editDay).reportValidity();
+    return;
+  }
+  if (editSelected.size === 0) {
+    editError.hidden = false;
+    return;
+  }
+
+  const entries = loadLog();
+  const entry = entries.find((item) => item.id === editingId);
+  if (!entry) {
+    closeEdit();
+    renderLog();
+    return;
+  }
+
+  entry.focus = focus;
+  entry.seconds = minutes * 60;
+  entry.day = day;
+  entry.endedAt = combineDayAndTime(day, time);
+  entry.categories = [...editSelected];
+  saveLog(entries);
+  closeEdit();
+  renderLog();
 }
 
 function submitIntent(event) {
@@ -656,6 +956,36 @@ intentForm.addEventListener("submit", (event) => {
   submitIntent(event);
 });
 intentAddCategory.addEventListener("click", addCustomCategory);
+intentManage.addEventListener("click", () => {
+  intentManaging = !intentManaging;
+  renderChips();
+});
+editManage.addEventListener("click", () => {
+  editManaging = !editManaging;
+  renderEditChips();
+});
+editCancel.addEventListener("click", () => {
+  if (!editReady) return;
+  closeEdit();
+});
+editEl.addEventListener("click", (event) => {
+  if (!editReady) return;
+  if (event.target === editEl) closeEdit();
+});
+editForm.addEventListener("submit", (event) => {
+  if (!editReady) {
+    event.preventDefault();
+    return;
+  }
+  submitEdit(event);
+});
+editAddCategory.addEventListener("click", addEditCategory);
+editNewCategory.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    addEditCategory();
+  }
+});
 intentNewCategory.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();
@@ -682,13 +1012,6 @@ modeButtons.forEach((btn) => {
 });
 
 document.addEventListener("keydown", (event) => {
-  if (
-    event.target instanceof HTMLInputElement ||
-    event.target instanceof HTMLTextAreaElement ||
-    event.target instanceof HTMLSelectElement
-  ) {
-    return;
-  }
   if (event.key === "Escape" && isRewardOpen()) {
     closeReward();
     return;
@@ -697,7 +1020,18 @@ document.addEventListener("keydown", (event) => {
     closeIntent();
     return;
   }
-  if (isRewardOpen() || isIntentOpen()) return;
+  if (event.key === "Escape" && isEditOpen()) {
+    closeEdit();
+    return;
+  }
+  if (
+    event.target instanceof HTMLInputElement ||
+    event.target instanceof HTMLTextAreaElement ||
+    event.target instanceof HTMLSelectElement
+  ) {
+    return;
+  }
+  if (isRewardOpen() || isIntentOpen() || isEditOpen()) return;
   if (event.code === "Space") {
     event.preventDefault();
     toggle();

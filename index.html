@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260818" />
+    <link rel="stylesheet" href="styles.css?v=20261117d" />
   </head>
   <body>
     <div class="atmosphere" aria-hidden="true">
@@ -108,7 +108,10 @@
         </label>
 
         <div class="field">
-          <span>Categories</span>
+          <div class="field-head">
+            <span>Categories</span>
+            <button type="button" class="field-link" id="intent-manage" aria-pressed="false">Edit</button>
+          </div>
           <div class="chips" id="intent-chips"></div>
           <div class="add-category">
             <input id="intent-new-category" type="text" maxlength="40" placeholder="Add a new category" />
@@ -124,6 +127,52 @@
       </form>
     </div>
 
+    <div class="reward" id="edit" hidden aria-hidden="true">
+      <form class="reward-card intent-card" id="edit-form" role="dialog" aria-modal="true" aria-labelledby="edit-kicker">
+        <p class="reward-kicker" id="edit-kicker">Edit log</p>
+        <p class="intent-lead">Update this focus block.</p>
+
+        <label class="field">
+          <span>Goal</span>
+          <input id="edit-focus" type="text" maxlength="80" required />
+        </label>
+
+        <label class="field">
+          <span>Minutes</span>
+          <input id="edit-minutes" type="number" inputmode="numeric" min="1" max="180" step="1" required />
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>Date</span>
+            <input id="edit-day" type="date" required />
+          </label>
+          <label class="field">
+            <span>Time</span>
+            <input id="edit-time" type="time" required />
+          </label>
+        </div>
+
+        <div class="field">
+          <div class="field-head">
+            <span>Categories</span>
+            <button type="button" class="field-link" id="edit-manage" aria-pressed="false">Edit</button>
+          </div>
+          <div class="chips" id="edit-chips"></div>
+          <div class="add-category">
+            <input id="edit-new-category" type="text" maxlength="40" placeholder="Add a new category" />
+            <button type="button" class="btn btn-ghost" id="edit-add-category">Add</button>
+          </div>
+          <p class="field-hint" id="edit-error" hidden>Pick at least one category.</p>
+        </div>
+
+        <div class="intent-actions">
+          <button type="button" class="btn btn-ghost" id="edit-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+
     <div class="reward" id="reward" hidden>
       <div class="reward-card" role="dialog" aria-modal="true" aria-labelledby="reward-kicker">
         <p class="reward-kicker" id="reward-kicker">Session complete</p>
@@ -132,6 +181,6 @@
       </div>
     </div>
 
-    <script src="app.js?v=20260818"></script>
+    <script src="app.js?v=20261117d"></script>
   </body>
 </html>
